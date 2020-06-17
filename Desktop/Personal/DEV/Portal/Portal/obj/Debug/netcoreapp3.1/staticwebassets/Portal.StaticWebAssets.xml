@@ -1,0 +1,4 @@
+﻿<StaticWebAssets Version="1.0">
+  <ContentRoot BasePath="/Identity" Path="C:\Users\mrjsh\.nuget\packages\microsoft.aspnetcore.identity.ui\3.1.4\staticwebassets\V4\" />
+  <ContentRoot BasePath="_content/Syncfusion.Blazor" Path="C:\Users\mrjsh\.nuget\packages\syncfusion.blazor\18.1.0.55\build\..\staticwebassets\" />
+</StaticWebAssets>

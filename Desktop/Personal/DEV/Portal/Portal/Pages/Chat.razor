@@ -1,0 +1,209 @@
+﻿@page "/Chat"
+
+@using Syncfusion.Blazor.Layouts
+@using Syncfusion.Blazor.Cards
+@using Syncfusion.Blazor.Lists
+@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.AspNetCore.Authorization
+@using Portal.Models;
+@inject HttpClient Http
+@attribute [Authorize]
+@inject NavigationManager NavigationManager
+
+@implements IDisposable
+
+<div class="top-row px-4">
+    @if (chatting)
+    {
+        <p>You are connected as <b>@userName</b></p>
+        <button class="btn btn-sm btn-warning ml-md-auto">Disconnect</button>}
+</div>
+
+<div class="content px-2">
+
+    <h1>SignalR Chat</h1>
+
+    @if (!chatting)
+    {
+        <div>
+            <input @bind="userName" />
+            <button @onclick="registerUser" type="button" value="Add" />
+        </div>
+    }
+    else
+  if (chatting)
+    {
+        <div>
+            <input @bind="userMessage" />
+            <button @onclick="sendMessage" type="button" value="Add" />
+        </div>
+
+        <SfDashboardLayout AllowResizing="false" AllowFloating="false" Columns="6">
+            <DashboardLayoutPanels>
+                <DashboardLayoutPanel Id="1" Row="0" Col="0" SizeX="4" SizeY="2">
+                    <HeaderTemplate><div>Chat</div></HeaderTemplate>
+                    <ContentTemplate>
+                        <div style=" height: calc(100%); overflow:auto">
+                            @foreach (var context in messageList)
+                            {
+
+                                <div class="row chatBubble">
+                                    <div class="col-10">
+                                        <div class="row" style="text-align:right">
+                                            @context.userName
+                                        </div>
+                                        <div class="row" style="text-wrap:normal">
+                                            @context.message
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </ContentTemplate>
+                </DashboardLayoutPanel>
+                <DashboardLayoutPanel Id="2" Row="0" Col="4" SizeX="1" SizeY="2">
+                    <HeaderTemplate><div>Users online : @numOnline</div></HeaderTemplate>
+                    <ContentTemplate>
+                        <div style=" height: calc(100%); overflow:auto">
+                            @foreach (var context in onlineUsers)
+                            {
+
+                                <div class="row chatBubble">
+                                    @context.Value
+                                </div>
+                            }
+                        </div>
+                    </ContentTemplate>
+                </DashboardLayoutPanel>
+                <DashboardLayoutPanel Id="3" Row="0" Col="4" SizeX="1" SizeY="2">
+                    <HeaderTemplate><div>User Log:</div></HeaderTemplate>
+                    <ContentTemplate>
+                        <div style=" height: calc(100%); overflow:auto">
+                            @foreach (var context in userLog)
+                            {
+
+                                <div class="row chatBubble">
+                                    <div class="col-10">
+                                        <div class="row" style="text-align:right">
+                                            @context.userName
+                                        </div>
+                                        <div class="row" style="text-wrap:normal">
+                                            @context.message
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </ContentTemplate>
+                </DashboardLayoutPanel>
+            </DashboardLayoutPanels>
+        </SfDashboardLayout>
+    }
+</div>
+@code {
+    private HubConnection hubConnection;
+    int numOnline = 0;
+    List<string> currentUsers = new List<string>();
+    List<userMessages> userLog = new List<userMessages>();
+    public List<userMessages> messageList = new List<userMessages>();
+    private Dictionary<string, string> onlineUsers = new Dictionary<string, string>();
+    bool chatting = false;
+    private string userMessage = "";
+    private string userName = "";
+
+
+    protected async Task registerUser()
+    {
+        //step 1 connected the a Hug
+        chatting = true;
+
+        hubConnection = new HubConnectionBuilder()
+                .WithUrl(NavigationManager.ToAbsoluteUri("/chatHub"))
+                .Build();
+
+        //when something happens on a method we want to know!
+        hubConnection.On<string, string>("RECEIVE", (user, newMessage) =>
+        {
+
+            messageList.Add(new userMessages()
+            {
+                message = newMessage,
+                userName = user
+            });
+            StateHasChanged();
+        });
+
+        hubConnection.On<string, string, int, Dictionary<string, string>>("REGISTERED", (user, newMessage, usersOnline, userListOnline) =>
+        {
+            onlineUsers = userListOnline;
+            numOnline = usersOnline;
+            var userUpdate = new userMessages()
+            {
+                message = newMessage,
+                userName = user
+            };
+
+            userLog.Add(userUpdate);
+            StateHasChanged();
+        });
+
+        //hubConnection.On<int, Dictionary<string, string>>("UsersOnline", (numUsers, onlineUserList) =>
+        //{
+        //    onlineUsers = new List<userMessages>();
+        //    numOnline = numUsers;
+        //    foreach (var item in onlineUserList)
+        //    {
+        //        var userUpdate = new userMessages()
+        //        {
+        //            message = "",
+        //            userName = item.Value
+        //        };
+        //        onlineUsers.Add(userUpdate);
+        //    }
+        //});
+        //start the conenction
+        await hubConnection.StartAsync();
+
+        //when hub is connected lets let everyone know someone has joined!
+        await hubConnection.SendAsync("Register", userName);
+    }
+
+    protected async Task sendMessage()
+    {
+        await hubConnection.SendAsync("SendMessage", userName, userMessage);
+    }
+
+    public bool IsConnected =>
+    hubConnection.State == HubConnectionState.Connected;
+
+    public void Dispose()
+    {
+        if (hubConnection != null)
+            _ = hubConnection.DisposeAsync();
+    }
+
+    class userOnline
+    {
+        public string connectionId { get; set; }
+    }
+
+
+    public class userMessages
+    {
+        public string userName { get; set; }
+        public string message { get; set; }
+    }
+}
+
+<style>
+    .chatBubble {
+        font-family: cursive;
+        margin-left: 0px;
+        margin-right: 0px;
+        margin-top: 5px;
+        background-color: darkgray;
+        border-radius: 29px;
+        padding: 12px 12px 12px 21px;
+        font-size: 17px;
+    }
+</style>
